@@ -56,6 +56,7 @@ def test_concepts_cover_the_teaching_goals() -> None:
 
 def test_readme_embeds_committed_screenshots() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert readme.startswith("# How Neural Networks Learn: An Image Classifier Lab\n")
     assert "actions/workflows/ci.yml/badge.svg" in readme
     images = re.findall(r"!\[[^\]]*\]\((docs/[^)]+)\)", readme)
     assert len(images) >= 5
@@ -72,4 +73,4 @@ def test_app_script_boots() -> None:
     app.run()
     assert not app.exception
     titles = [title.value for title in app.title]
-    assert any("ImagePro" in title for title in titles)
+    assert "How Neural Networks Learn: An Image Classifier Lab" in titles

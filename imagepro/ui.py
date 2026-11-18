@@ -87,16 +87,19 @@ class Artifact:
     details: str
 
 
+APP_TITLE = "How Neural Networks Learn: An Image Classifier Lab"
+
+
 def main() -> None:
-    """Run the ImagePro app. Use ``streamlit run main.py``."""
+    """Run the app. Use ``streamlit run main.py``."""
     st.set_page_config(
-        page_title="ImagePro - Image Classifier",
+        page_title=APP_TITLE,
         layout="wide",
         initial_sidebar_state="expanded",
     )
     _ensure_state()
     settings = _sidebar()
-    st.title("ImagePro - Image Classifier")
+    st.title(APP_TITLE)
     st.caption(
         "Train a ResNet-18 on your own classes and watch training and validation move "
         "together. Transfer mode starts from ImageNet and trains a new final layer. "
