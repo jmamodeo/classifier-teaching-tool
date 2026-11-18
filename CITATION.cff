@@ -4,8 +4,10 @@ type: software
 title: "ImagePro Classifier Teaching Tool"
 abstract: >-
   A Streamlit teaching app for training a two-class image classifier.
-  Users upload two labeled image sets, train a ResNet-18 model either
-  from a pretrained checkpoint or from scratch, and classify a test image.
+  Users upload two labeled image sets, train the classification head of
+  a ResNet-18 (ImageNet-pretrained or randomly initialized), and classify
+  a test image.
+license: MIT
 authors:
   - family-names: Amodeo
     given-names: John
