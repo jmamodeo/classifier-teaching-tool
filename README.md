@@ -1,8 +1,8 @@
-# ImagePro
+# How Neural Networks Learn: An Image Classifier Lab
 
 [![CI](https://github.com/jmamodeo/classifier-teaching-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/jmamodeo/classifier-teaching-tool/actions/workflows/ci.yml)
 
-ImagePro is a small Streamlit app for watching an image classifier learn. Give it a few labeled images, or use the built-in circles, squares, and triangles, then train a ResNet-18 and read the charts.
+A small Streamlit lab for watching an image classifier learn. Give it a few labeled images, or use the built-in circles, squares, and triangles, then train a ResNet-18 and read the charts.
 
 Two modes share the images, the loss, and the learning rate. **Transfer** starts from ImageNet weights and trains a new final layer while the backbone stays frozen. **Novel** starts from random weights and trains every layer. The parameter cards, the curves, and the short explanations are there so that difference is visible.
 
