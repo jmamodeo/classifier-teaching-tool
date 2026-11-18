@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "ImagePro Classifier Teaching Tool"
+abstract: >-
+  A Streamlit teaching app for training a two-class image classifier.
+  Users upload two labeled image sets, train a ResNet-18 model either
+  from a pretrained checkpoint or from scratch, and classify a test image.
+authors:
+  - family-names: Amodeo
+    given-names: John
+repository-code: "https://github.com/jmamodeo/classifier-teaching-tool"
+keywords:
+  - image classification
+  - transfer learning
+  - resnet
+  - streamlit
+  - teaching
