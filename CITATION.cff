@@ -1,12 +1,11 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
-title: "ImagePro Classifier Teaching Tool"
+title: "How Neural Networks Learn: An Image Classifier Lab"
 abstract: >-
-  A Streamlit teaching app for training a two-class image classifier.
-  Users upload two labeled image sets, train the classification head of
-  a ResNet-18 (ImageNet-pretrained or randomly initialized), and classify
-  a test image.
+  A Streamlit lab for training an image classifier and watching how it
+  learns. Upload two or more labeled image sets, or use the built-in
+  shapes, and train a ResNet-18 from ImageNet weights or from scratch.
 license: MIT
 authors:
   - family-names: Amodeo
