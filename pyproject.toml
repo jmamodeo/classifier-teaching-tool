@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "imagepro"
+version = "1.0.0"
+description = "A Streamlit app for teaching image-classifier training with ResNet-18."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "John Amodeo" }]
+keywords = [
+    "image-classification",
+    "transfer-learning",
+    "pytorch",
+    "streamlit",
+    "education",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "streamlit>=1.33",
+    "matplotlib>=3.8",
+    "pillow>=10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/jmamodeo/classifier-teaching-tool"
+Changelog = "https://github.com/jmamodeo/classifier-teaching-tool/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+include = ["imagepro*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["imagepro", "tests", "main.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["imagepro"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --tb=short"
