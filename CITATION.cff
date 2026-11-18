@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "How Neural Networks Learn: An Image Classifier Lab"
+abstract: >-
+  A Streamlit lab for training an image classifier and watching how it
+  learns. Upload two or more labeled image sets, or use the built-in
+  shapes, and train a ResNet-18 from ImageNet weights or from scratch.
+license: MIT
+authors:
+  - family-names: Amodeo
+    given-names: John
+repository-code: "https://github.com/jmamodeo/classifier-teaching-tool"
+keywords:
+  - image classification
+  - transfer learning
+  - resnet
+  - streamlit
+  - teaching

@@ -91,6 +91,8 @@ imagepro/plots.py        loss, accuracy, confusion, class shares
 imagepro/examples.py     the built-in shapes
 imagepro/explanations.py the panels
 imagepro/ui.py           the page
+CITATION.cff             citation metadata
+LICENSE                  MIT license
 ```
 
 ## Development
@@ -103,7 +105,7 @@ ruff format --check .
 pytest
 ```
 
-Tests build every model with `weights=None` and block the weight download, so they stay offline and on CPU. GitHub Actions runs Ruff and pytest on Python 3.11, 3.12, and 3.13.
+Tests build every model with `weights=None` and block the weight download, so they stay offline and on CPU. GitHub Actions runs an import smoke test, Ruff, and pytest on Python 3.11, 3.12, and 3.13.
 
 ## Boundaries
 
@@ -114,6 +116,10 @@ Tests build every model with `weights=None` and block the weight download, so th
 - The optimizer is Adam for a fixed number of epochs.
 - The example drawings differ in color and in outline, so a short run has an easy signal. They are a teaching set.
 
+## Citation
+
+If you use this software, please cite it. GitHub's "Cite this repository" button uses [`CITATION.cff`](CITATION.cff).
+
 ## License
 
-MIT. Copyright (c) 2026 John Amodeo. See [LICENSE](LICENSE) and [CHANGELOG](CHANGELOG.md).
+MIT. Copyright (c) 2025-2026 John Amodeo. See [LICENSE](LICENSE) and [CHANGELOG](CHANGELOG.md).

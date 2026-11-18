@@ -34,7 +34,7 @@ def test_version_matches_pyproject() -> None:
 def test_license_and_changelog_name_the_release() -> None:
     license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "Copyright (c) 2026 John Amodeo" in license_text
+    assert "Copyright (c) 2025-2026 John Amodeo" in license_text
     assert "Permission is hereby granted" in license_text
     assert "## 1.0.0" in changelog
     assert "Novel mode" in changelog
