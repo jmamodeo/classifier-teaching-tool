@@ -30,10 +30,8 @@ from imagepro.examples import EXAMPLE_IMAGES_PER_CLASS, make_shape_dataset
 from imagepro.explanations import CONCEPTS
 from imagepro.insights import summarize_training
 from imagepro.lesson_ui import (
-    LAB_PAGE,
     LabSnapshot,
     append_run,
-    open_page,
     render_curriculum,
     render_run_log,
 )
@@ -218,13 +216,6 @@ def _slot_count(source: str) -> int:
 def _sidebar() -> Settings:
     concepts = CONCEPTS
     st.sidebar.header("Settings")
-    st.sidebar.button(
-        "Open the training lab",
-        key="sidebar-lab",
-        on_click=open_page,
-        args=(LAB_PAGE,),
-        use_container_width=True,
-    )
     st.sidebar.caption("The lessons name which of these to move, and which to leave.")
     devices = available_devices()
     device_label = st.sidebar.selectbox(

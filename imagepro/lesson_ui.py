@@ -87,6 +87,7 @@ from imagepro.training import TrainResult, available_devices, resolve_batching
 PAGE_KEY = "curriculum_page"
 VISITED_KEY = "curriculum_visited"
 LAST_SECTION_KEY = "curriculum_last_section"
+DONE_KEY = "curriculum_done"
 RUN_LOG_KEY = "run_log"
 _RUN_LIMIT = 8
 
@@ -172,6 +173,7 @@ def render_run_log() -> None:
 
 def render_curriculum(snapshot: LabSnapshot) -> None:
     """Navigator plus the current lesson. The lab is rendered separately, below."""
+    _sync_exercise_done()
     page = _current_page()
     if page != LAB_PAGE:
         _visit(page)
@@ -201,8 +203,34 @@ def _current_page() -> str:
 
 
 def open_page(page: str) -> None:
-    """Select a lesson or the training lab. Used by the navigator and the sidebar."""
+    """Select a lesson or the training lab. Used by the navigator buttons."""
     st.session_state[PAGE_KEY] = page
+
+
+def _exercise_done() -> set[str]:
+    """Section keys whose exercise checkbox is checked.
+
+    The checkbox widget is only created for the open lesson. Streamlit drops a
+    widget key that was not rendered, so the durable record is this set.
+    """
+    stored = st.session_state.get(DONE_KEY)
+    if not isinstance(stored, set):
+        stored = set()
+        st.session_state[DONE_KEY] = stored
+    return stored
+
+
+def _sync_exercise_done() -> None:
+    """Copy any checkbox that is still in state into the durable set."""
+    done = _exercise_done()
+    for section in SECTIONS:
+        widget_key = f"done-{section.key}"
+        if widget_key not in st.session_state:
+            continue
+        if st.session_state[widget_key]:
+            done.add(section.key)
+        else:
+            done.discard(section.key)
 
 
 def _visit(page: str) -> None:
@@ -214,7 +242,7 @@ def _visit(page: str) -> None:
 def _navigator(page: str) -> None:
     total = len(SECTIONS)
     opened = len(set(st.session_state.get(VISITED_KEY, ())) & {item.key for item in SECTIONS})
-    done = sum(1 for item in SECTIONS if st.session_state.get(f"done-{item.key}"))
+    done = sum(1 for item in SECTIONS if item.key in _exercise_done())
     st.progress(opened / total, text=f"{opened} of {total} sections opened")
     st.caption(f"{done} of {total} exercises marked done.")
     previous, following, lab = st.columns([1, 1, 2])
@@ -259,7 +287,7 @@ def _navigator(page: str) -> None:
     )
     columns = st.columns(total)
     for column, section in zip(columns, SECTIONS, strict=True):
-        mark = "✓ " if st.session_state.get(f"done-{section.key}") else ""
+        mark = "✓ " if section.key in _exercise_done() else ""
         column.button(
             f"{mark}{section.number} {section.short}",
             key=f"nav-{section.key}",
@@ -314,7 +342,10 @@ def _render_exercise(exercise: Exercise, section_key: str) -> None:
         st.write(exercise.question)
         with st.expander("Show the check"):
             st.write(exercise.answer)
-        st.checkbox("Mark this exercise done", key=f"done-{section_key}")
+        widget_key = f"done-{section_key}"
+        if widget_key not in st.session_state:
+            st.session_state[widget_key] = section_key in _exercise_done()
+        st.checkbox("Mark this exercise done", key=widget_key)
 
 
 def _show(figure: Figure) -> None:

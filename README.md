@@ -10,7 +10,7 @@ Two modes share the images, the loss, and the learning rate. **Transfer** starts
 
 ## The curriculum
 
-The lessons are in order, and any of them can be opened from the numbered buttons. A bar counts how many sections have been opened. A caption counts how many exercises have been marked done. Marking an exercise done is a checkbox, not a gate. **Training lab**, in the lesson bar and in the sidebar, hides the lesson and leaves the training controls on the page. The settings stay in the sidebar the whole time.
+The lessons are in order, and any of them can be opened from the numbered buttons. A bar counts how many sections have been opened. A caption counts how many exercises have been marked done. Marking an exercise done is a checkbox, not a gate. **Training lab**, in the lesson bar, hides the lesson and leaves the training controls on the page. The settings stay in the sidebar the whole time.
 
 Each lesson states its objectives, explains the idea with a diagram or a count taken from this model, and ends with an exercise. The exercise names which settings to change, lists the ones to leave at their defaults, says what to look for, and hides a short check until you open it.
 
