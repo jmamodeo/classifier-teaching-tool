@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "imagepro"
-version = "1.0.0"
-description = "A Streamlit app for teaching image-classifier training with ResNet-18."
+version = "1.1.0"
+description = "A Streamlit curriculum for teaching how an image classifier learns."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

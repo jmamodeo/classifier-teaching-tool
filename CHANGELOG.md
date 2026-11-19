@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0 - 2026-11-18
+
+### Added
+
+- A guided curriculum of eight sections, from pixels and a linear layer through convolutions, training dynamics, transfer learning, evaluation, and the hardware that runs the arithmetic. Each section states its objectives and ends with an exercise that names which settings to change.
+- Diagrams drawn in the app: channel values, softmax, a one-number step-size sketch, a hand-built filter, the residual block, and parameter and multiply-add counts read from this ResNet-18.
+- Wall-clock time per training epoch and images per second on the learner's own run. Forward multiply-adds, parameter bytes, Adam state, and a forward-output parts list are computed from the model. A CUDA allocator peak is reported only when the run used CUDA.
+
+### Changed
+
+- The concept panels on the main page are now the curriculum. One-line help remains on the settings.
+- The version is 1.1.0.
+
 ## 1.0.0 - 2026-11-18
 
 First teaching release of ImagePro.

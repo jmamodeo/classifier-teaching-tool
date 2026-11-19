@@ -1,3 +1,3 @@
-"""ImagePro: a small app for teaching how an image classifier learns."""
+"""ImagePro: a lab for teaching how an image classifier learns."""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

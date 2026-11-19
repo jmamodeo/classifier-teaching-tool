@@ -27,13 +27,28 @@ from imagepro.data import (
 )
 from imagepro.errors import DatasetError, TrainingError, UserFacingError
 from imagepro.examples import EXAMPLE_IMAGES_PER_CLASS, make_shape_dataset
-from imagepro.explanations import CONCEPT_ORDER, CONCEPTS
+from imagepro.explanations import CONCEPTS
 from imagepro.insights import summarize_training
+from imagepro.lesson_ui import (
+    LabSnapshot,
+    append_run,
+    render_curriculum,
+    render_run_log,
+)
+from imagepro.measure import format_bytes, make_run_record, summarize_timing
 from imagepro.model import LearningMode, architecture_parameter_counts
 from imagepro.plots import plot_confusion, plot_history, plot_probabilities
 from imagepro.training import (
+    DEFAULT_AUGMENT,
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_EPOCHS,
     DEFAULT_LEARNING_RATE,
+    DEFAULT_SEED,
+    DEFAULT_SHUFFLE,
+    DEFAULT_VAL_PERCENT,
     LEARNING_RATES,
+    MAX_BATCH_SIZE,
+    MAX_EPOCHS,
     MIN_BATCH_SIZE,
     TrainResult,
     available_devices,
@@ -101,12 +116,23 @@ def main() -> None:
     settings = _sidebar()
     st.title(APP_TITLE)
     st.caption(
-        "Train a ResNet-18 on your own classes and watch training and validation move "
-        "together. Transfer mode starts from ImageNet and trains a new final layer. "
+        "Eight lessons on how this image classifier learns, and a training lab that "
+        "stays on the page. Each lesson ends with an exercise that names the settings "
+        "to change. Transfer mode starts from ImageNet and trains a new final layer. "
         "Novel mode trains every layer from random weights."
     )
-    _render_concepts()
+    lesson_slot = st.container()
+    lab_slot = st.container()
+    with lab_slot:
+        snapshot = _render_workspace(settings)
+    with lesson_slot:
+        render_curriculum(snapshot)
 
+
+def _render_workspace(settings: Settings) -> LabSnapshot:
+    """The images, the run, and the prediction. Always on the page, under the lesson."""
+    st.markdown('<div id="training-lab"></div>', unsafe_allow_html=True)
+    st.subheader("Training lab")
     st.subheader("Images")
     source = st.radio(
         "Where the images come from",
@@ -151,12 +177,28 @@ def main() -> None:
                 st.session_state.artifact = artifact
 
     stored = st.session_state.get("artifact")
-    if isinstance(stored, Artifact):
-        _render_results(stored, _signature(settings, groups))
-        _render_prediction(stored)
+    trained = stored if isinstance(stored, Artifact) else None
+    signature = _signature(settings, groups)
+    if trained is not None:
+        _render_results(trained, signature)
+        _render_prediction(trained)
+        st.markdown("**Recent runs**")
+        render_run_log()
 
     st.divider()
     st.caption(f"ImagePro {__version__} · John Amodeo · MIT License")
+    return LabSnapshot(
+        class_count=class_count,
+        source=str(source),
+        mode=settings.mode,
+        batch_size=settings.batch_size,
+        val_percent=settings.val_percent,
+        seed=settings.seed,
+        device_label=settings.device_label,
+        device=settings.device,
+        signature=signature,
+        trained=trained,
+    )
 
 
 def _ensure_state() -> None:
@@ -174,6 +216,7 @@ def _slot_count(source: str) -> int:
 def _sidebar() -> Settings:
     concepts = CONCEPTS
     st.sidebar.header("Settings")
+    st.sidebar.caption("The lessons name which of these to move, and which to leave.")
     devices = available_devices()
     device_label = st.sidebar.selectbox(
         "Hardware",
@@ -210,8 +253,8 @@ def _sidebar() -> Settings:
         st.sidebar.number_input(
             "Batch size",
             min_value=MIN_BATCH_SIZE,
-            max_value=64,
-            value=4,
+            max_value=MAX_BATCH_SIZE,
+            value=DEFAULT_BATCH_SIZE,
             step=1,
             help=concepts["batch_size"].summary,
         )
@@ -220,8 +263,8 @@ def _sidebar() -> Settings:
         st.sidebar.slider(
             "Epochs",
             min_value=1,
-            max_value=30,
-            value=5,
+            max_value=MAX_EPOCHS,
+            value=DEFAULT_EPOCHS,
             help=concepts["epochs"].summary,
         )
     )
@@ -230,7 +273,7 @@ def _sidebar() -> Settings:
             "Validation holdout (%)",
             min_value=10,
             max_value=50,
-            value=20,
+            value=DEFAULT_VAL_PERCENT,
             step=5,
             help=concepts["validation"].summary,
         )
@@ -239,14 +282,14 @@ def _sidebar() -> Settings:
     shuffle = bool(
         st.sidebar.checkbox(
             "Shuffle training images each epoch",
-            value=True,
+            value=DEFAULT_SHUFFLE,
             help=concepts["shuffle"].summary,
         )
     )
     augment = bool(
         st.sidebar.checkbox(
             "Augment training images",
-            value=True,
+            value=DEFAULT_AUGMENT,
             help=concepts["augmentation"].summary,
         )
     )
@@ -255,7 +298,7 @@ def _sidebar() -> Settings:
             "Seed",
             min_value=0,
             max_value=1_000_000,
-            value=0,
+            value=DEFAULT_SEED,
             step=1,
             help=concepts["seed"].summary,
         )
@@ -278,16 +321,6 @@ def _mode_label(mode: LearningMode) -> str:
     if mode is LearningMode.TRANSFER:
         return "Transfer (pretrained backbone)"
     return "Novel (from scratch)"
-
-
-def _render_concepts() -> None:
-    st.caption("Open a topic for a short explanation. The charts are those ideas, measured.")
-    left, right = st.columns(2)
-    for index, key in enumerate(CONCEPT_ORDER):
-        concept = CONCEPTS[key]
-        column = left if index % 2 == 0 else right
-        with column, st.expander(concept.title):
-            st.markdown(concept.body)
 
 
 def _load_groups(source: str) -> tuple[list[LabeledImages] | None, str | None]:
@@ -500,6 +533,18 @@ def _run_training(
         raise
 
     progress.progress(1.0, text="Training finished.")
+    append_run(
+        make_run_record(
+            result,
+            mode=settings.mode.title,
+            learning_rate=settings.learning_rate,
+            batch_size=settings.batch_size,
+            epochs=settings.epochs,
+            augment=settings.augment,
+            device_label=settings.device_label,
+            seed=settings.seed,
+        )
+    )
     summary = summarize_training(
         result.history,
         mode=settings.mode,
@@ -580,6 +625,9 @@ def _render_results(artifact: Artifact, signature: tuple[object, ...] | None) ->
             "before reading this as the current setup."
         )
     st.caption(artifact.details)
+    timing_line = _timing_line(artifact)
+    if timing_line:
+        st.caption(timing_line)
     for paragraph in artifact.summary:
         st.write(paragraph)
     if artifact.mode is LearningMode.NOVEL:
@@ -607,6 +655,28 @@ def _render_results(artifact: Artifact, signature: tuple[object, ...] | None) ->
         st.markdown("**Per-class validation accuracy**")
         st.caption("Of the held-out images of this class, how many the model labeled correctly.")
         _render_class_table(artifact)
+
+
+def _timing_line(artifact: Artifact) -> str:
+    """Wall-clock line for the run. Empty when the timer did not move."""
+    timing = summarize_timing(artifact.result.history)
+    if timing.images_per_second is None:
+        return ""
+    name = next(
+        (label for label, value in available_devices() if value == artifact.device),
+        artifact.device,
+    )
+    text = (
+        f"Measured on {name}: the training pass averaged {timing.mean_train_seconds:.2f} s "
+        f"per epoch, {timing.images_per_second:.1f} images/s. That includes loading the "
+        "images and the optimizer step, and it leaves out the validation pass."
+    )
+    if timing.peak_memory_bytes:
+        text += (
+            " Peak CUDA memory on the training side of an epoch: "
+            f"{format_bytes(timing.peak_memory_bytes)}."
+        )
+    return text
 
 
 def _render_class_table(artifact: Artifact) -> None:
