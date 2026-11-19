@@ -1,4 +1,4 @@
-# How Neural Networks Learn: An Image Classifier Lab
+# Lessons in AI from an Image Classifier
 
 [![CI](https://github.com/jmamodeo/classifier-teaching-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/jmamodeo/classifier-teaching-tool/actions/workflows/ci.yml)
 

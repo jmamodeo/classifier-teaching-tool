@@ -110,7 +110,7 @@ class Artifact:
     val_images: tuple[Image.Image, ...]
 
 
-APP_TITLE = "How Neural Networks Learn: An Image Classifier Lab"
+APP_TITLE = "Lessons in AI from an Image Classifier"
 
 
 def main() -> None:

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The page title, the README title, and the citation title are now "Lessons in AI from an Image Classifier".
+
 ## 1.1.0 - 2026-11-19
 
 ### Added
