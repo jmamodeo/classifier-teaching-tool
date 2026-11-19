@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import random
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -30,8 +31,16 @@ from imagepro.model import (
 )
 
 MIN_BATCH_SIZE = 2
+MAX_BATCH_SIZE = 64
 LEARNING_RATES: tuple[float, ...] = (0.0001, 0.0003, 0.001, 0.003, 0.01, 0.03)
 DEFAULT_LEARNING_RATE = 0.001
+DEFAULT_BATCH_SIZE = 4
+DEFAULT_EPOCHS = 5
+MAX_EPOCHS = 30
+DEFAULT_VAL_PERCENT = 20
+DEFAULT_SEED = 0
+DEFAULT_SHUFFLE = True
+DEFAULT_AUGMENT = True
 
 
 @dataclass(frozen=True)
@@ -43,6 +52,11 @@ class EpochMetrics:
     train_accuracy: float
     val_loss: float
     val_accuracy: float
+    train_seconds: float = 0.0
+    val_seconds: float = 0.0
+    train_images: int = 0
+    train_steps: int = 0
+    peak_memory_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -175,6 +189,30 @@ def recalibrate_batchnorm(
         module.momentum = momentum
 
 
+@dataclass(frozen=True)
+class _PassResult:
+    """One train or validation pass, including the wall-clock time around it."""
+
+    loss: float
+    accuracy: float
+    truths: tuple[int, ...]
+    predictions: tuple[int, ...]
+    seconds: float
+    images: int
+    steps: int
+
+
+def _peak_allocated(device: torch.device) -> int | None:
+    """CUDA allocator peak since the last reset, or ``None`` when this is not CUDA.
+
+    PyTorch reports that peak for CUDA. CPU and MPS runs leave the field empty
+    rather than substituting a guess.
+    """
+    if device.type != "cuda" or not torch.cuda.is_available():
+        return None
+    return int(torch.cuda.max_memory_allocated(device))
+
+
 def _freeze_batchnorm(model: nn.Module) -> None:
     """Keep every BatchNorm layer in eval while the rest of the net trains.
 
@@ -197,7 +235,8 @@ def _run_pass(
     update: bool,
     freeze_bn: bool,
     num_classes: int,
-) -> tuple[float, float, list[int], list[int]]:
+) -> _PassResult:
+    started = time.perf_counter()
     if update:
         model.train()
         if freeze_bn:
@@ -208,6 +247,7 @@ def _run_pass(
     total_loss = 0.0
     correct = 0
     seen = 0
+    steps = 0
     truths: list[int] = []
     predictions: list[int] = []
     context = torch.enable_grad() if update else torch.no_grad()
@@ -237,6 +277,7 @@ def _run_pass(
             total_loss += float(loss.item())
             correct += int((predicted == labels).sum().item())
             seen += batch_count
+            steps += 1
             if not update:
                 truths.extend(int(value) for value in labels.detach().cpu().tolist())
                 predictions.extend(int(value) for value in predicted.detach().cpu().tolist())
@@ -244,7 +285,15 @@ def _run_pass(
         raise TrainingError(
             "There were no images to score. Add more images or lower the batch size."
         )
-    return total_loss / seen, correct / seen, truths, predictions
+    return _PassResult(
+        loss=total_loss / seen,
+        accuracy=correct / seen,
+        truths=tuple(truths),
+        predictions=tuple(predictions),
+        seconds=time.perf_counter() - started,
+        images=seen,
+        steps=steps,
+    )
 
 
 def fit(
@@ -320,7 +369,9 @@ def fit(
     y_pred: list[int] = []
 
     for epoch in range(1, epochs + 1):
-        train_loss, train_accuracy, _, _ = _run_pass(
+        if device_t.type == "cuda" and torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats(device_t)
+        trained = _run_pass(
             model,
             train_loader,
             criterion,
@@ -332,7 +383,10 @@ def fit(
         )
         if uses_batchnorm(model) and not freeze_bn:
             recalibrate_batchnorm(model, train_loader, device_t)
-        val_loss, val_accuracy, y_true, y_pred = _run_pass(
+        # Snapshot before validation so a CUDA peak is the training side of the
+        # epoch (the update, plus novel-mode BatchNorm refresh), not the holdout.
+        peak_memory = _peak_allocated(device_t)
+        validated = _run_pass(
             model,
             val_loader,
             criterion,
@@ -342,13 +396,20 @@ def fit(
             freeze_bn=False,
             num_classes=num_classes,
         )
+        y_true = list(validated.truths)
+        y_pred = list(validated.predictions)
         history.append(
             EpochMetrics(
                 epoch=epoch,
-                train_loss=train_loss,
-                train_accuracy=train_accuracy,
-                val_loss=val_loss,
-                val_accuracy=val_accuracy,
+                train_loss=trained.loss,
+                train_accuracy=trained.accuracy,
+                val_loss=validated.loss,
+                val_accuracy=validated.accuracy,
+                train_seconds=trained.seconds,
+                val_seconds=validated.seconds,
+                train_images=trained.images,
+                train_steps=trained.steps,
+                peak_memory_bytes=peak_memory,
             )
         )
         if on_epoch is not None:

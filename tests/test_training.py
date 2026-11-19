@@ -65,6 +65,11 @@ def test_epoch_loss_is_the_mean_over_images_not_the_sum_of_batches() -> None:
     assert metrics.val_loss == pytest.approx(expected)
     assert metrics.train_accuracy == pytest.approx(2 / 3)
     assert metrics.epoch == 1
+    assert metrics.train_images == 3
+    assert metrics.train_steps == 2
+    assert metrics.train_seconds > 0
+    assert metrics.val_seconds > 0
+    assert metrics.peak_memory_bytes is None
     assert result.confusion == ((2, 0), (1, 0))
     assert result.per_class_accuracy == pytest.approx((1.0, 0.0))
     assert sum(sum(row) for row in result.confusion) == 3

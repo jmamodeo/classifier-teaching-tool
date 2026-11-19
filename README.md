@@ -2,27 +2,50 @@
 
 [![CI](https://github.com/jmamodeo/classifier-teaching-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/jmamodeo/classifier-teaching-tool/actions/workflows/ci.yml)
 
-A small Streamlit lab for watching an image classifier learn. Give it a few labeled images, or use the built-in circles, squares, and triangles, then train a ResNet-18 and read the charts.
+A Streamlit lab for learning how an image classifier works, and how that work lands on the hardware that runs it. Eight lessons sit above a training lab. Give the lab a few labeled images, or use the built-in circles, squares, and triangles, then train a ResNet-18 and read the charts.
 
-Two modes share the images, the loss, and the learning rate. **Transfer** starts from ImageNet weights and trains a new final layer while the backbone stays frozen. **Novel** starts from random weights and trains every layer. The parameter cards, the curves, and the short explanations are there so that difference is visible.
+Two modes share the images, the loss, and the learning rate. **Transfer** starts from ImageNet weights and trains a new final layer while the backbone stays frozen. **Novel** starts from random weights and trains every layer.
 
-![The app on first open: settings, concept panels, and an upload form for two or more classes.](docs/home.png)
+![First open: eight lesson buttons, the objectives for Images as numbers, and the three color channels of a built-in drawing.](docs/home.png)
+
+## The curriculum
+
+The lessons are in order, and any of them can be opened from the numbered buttons. A bar counts how many sections have been opened. A caption counts how many exercises have been marked done. Marking an exercise done is a checkbox, not a gate. **Training lab**, in the lesson bar and in the sidebar, hides the lesson and leaves the training controls on the page. The settings stay in the sidebar the whole time.
+
+Each lesson states its objectives, explains the idea with a diagram or a count taken from this model, and ends with an exercise. The exercise names which settings to change, lists the ones to leave at their defaults, says what to look for, and hides a short check until you open it.
+
+| | Lesson | Exercise |
+| --- | --- | --- |
+| 1 | Images as numbers. Pixels, channels, the tensor shape, resize, and ImageNet normalization. | Choose Built-in shapes. Change nothing. Compare a training draw with the holdout picture. |
+| 2 | A neuron and a linear layer. Weights, bias, the dot product, and softmax. | Change only Learning mode, and compare the two parameter cards. |
+| 3 | Loss, gradients, and the learning rate. Cross-entropy, a step downhill, and what Adam rescales. | Train three times. Change only the learning rate: 0.0001, then 0.001, then 0.03. |
+| 4 | Convolutions, depth, and residual connections. Filters, feature maps, and where the parameters sit. | Train once in Transfer, then once in Novel, and look at the first-layer filters. |
+| 5 | Epochs, batches, and overfitting. The holdout, augmentation, and the seed. | Train once at 15 epochs. Then train at 5 epochs with augmentation off. |
+| 6 | Transfer learning and training from scratch. Frozen layers and BatchNorm statistics. | Train Transfer, then Novel, at the defaults. Read the trainable counts and the BatchNorm caption. |
+| 7 | Accuracy, confusion, and confidence. What the percent beside a prediction is. | Read the confusion matrix of a default run. |
+| 8 | Arithmetic, memory, and the device. Multiply-adds, what sits in memory, and images per second from your own run. | Train at batch size 2, then at batch size 8. If the hardware menu lists a second device, train once on it at batch size 4. |
+
+![The exercise at the end of Images as numbers, naming the settings to leave alone.](docs/exercise.png)
+
+The diagrams are drawn in the app. A few of them are labeled as sketches: the one-number bowl is plain gradient descent, not Adam, and the overfitting chart is an invented shape so the pattern is recognizable. The confusion grid titled "Reading practice — not a run" is a made-up matrix for the arithmetic. Everything else in a lesson is computed from this ResNet-18, from the built-in drawings, or from the run you just finished.
+
+![The scores lesson, with a made-up confusion matrix labeled as reading practice.](docs/scores.png)
 
 ## What a run looks like
 
 Built-in drawings, eight per class. The cards count trainable parameters before any training starts. For three classes that is 1,539 in transfer mode and all 11,178,051 in novel mode.
 
-![Built-in circles, squares, and triangles, with the transfer and novel parameter cards.](docs/dataset.png)
+![Built-in circles, squares, and triangles, the parameter cards, and four augmented draws of a training square beside the validation square.](docs/augmentation.png)
 
-Each training image is flipped and rotated again every time it is loaded, so a new epoch is a new draw. The preview shows four draws of one training image and the matching validation image, which is only resized.
+Train and validation share both axes. On a five-epoch transfer run at the defaults, the mean loss fell on both sets. The page reports the finals; this chart's run ended at training loss 0.223 and validation loss 0.258.
 
-![Four augmented draws of a training square, beside the unrotated validation square.](docs/augmentation.png)
+![Mean loss and accuracy for five epochs of transfer training on the built-in shapes.](docs/curves.png)
 
-Train and validation share both axes. On this five-epoch transfer run the mean loss fell on both sets, and training accuracy caught up with the holdout.
+The same default run, on the CPU used to check this page, also reports wall-clock time. That machine averaged 1.07 seconds per training epoch and 16.8 images per second. Those two numbers are one run on one CPU. They are not a benchmark, and another machine will print its own.
 
-![Mean loss and accuracy for five epochs. Training loss fell from about 1.18 to 0.22, and validation loss fell from about 0.82 to 0.26.](docs/curves.png)
+![After training: the timing line, the parameter sentence, and the loss and accuracy charts.](docs/run.png)
 
-Rows of the confusion matrix are the true class. Per-class accuracy is the fraction of that class's held-out images labeled correctly.
+Rows of the confusion matrix are the true class. Per-class accuracy is the fraction of that class's held-out images labeled correctly. On two images per class, 100% is those two images.
 
 ![Validation confusion matrix and per-class accuracy, all three classes at 100% on two images each.](docs/confusion.png)
 
@@ -30,7 +53,21 @@ A new image takes the validation path: resize and normalize, with no flip and no
 
 ![A held-out circle classified as circle at 94.5% softmax share.](docs/prediction.png)
 
-The screenshots are one real run: transfer mode, CPU, Adam at learning rate 0.001, batch size 4, 5 epochs, 20% holdout, seed 0, shuffle and augmentation on.
+The chart screenshots above are a default run: transfer mode, CPU, Adam at learning rate 0.001, batch size 4, 5 epochs, 20% holdout, seed 0, shuffle and augmentation on.
+
+## What the hardware lesson measures
+
+The counts are computed from this ResNet-18 at the class count and batch size in the sidebar. A multiply-add is one multiplication of a weight by an input, added into a total, inside a convolution or a linear layer. Bias, BatchNorm, ReLU, and pooling are left out of the count. FLOPs, on this page, are twice the multiply-adds. A training step also runs a backward pass, which is not in that number.
+
+Memory is split into parts: parameter bytes, gradient bytes for the trainable parameters, two float32 Adam buffers per trainable parameter, BatchNorm buffers, and a forward-output parts list. The parts list adds up the tensor each leaf layer returned. Those tensors are not all stored at once, so the total is not a memory-meter reading. Parameter bytes and Adam bytes do not grow with the batch. The forward-output list does.
+
+Images per second come from the run: training images scored, divided by the time spent in the training pass, including loading the images and the optimizer step. Validation time is reported separately. When the run used CUDA, the page also reports the allocator's peak. CPU and Apple silicon (MPS) runs do not invent a peak.
+
+The screenshot below was taken before Built-in shapes was selected, so the upload form still had two classes. The sentence in the picture is the count for that moment: batch 4, 2 classes, Transfer. Choosing the shapes changes the class count to three and the page recomputes.
+
+![The hardware lesson: multiply-adds for one forward pass, and the memory parts for that model and batch.](docs/hardware.png)
+
+The lesson describes why a GPU or the Apple silicon backend can run the same multiplies in parallel, and why memory bandwidth matters. It does not quote a speed for hardware that is not in the menu. The app trains in float32. It does not switch numeric types, so it has no measured comparison of precision to show.
 
 ## Quickstart
 
@@ -56,41 +93,31 @@ The first transfer run downloads the ImageNet ResNet-18 weights, about 45 MB, fr
 3. Transfer mode loads `ResNet18_Weights.IMAGENET1K_V1`, replaces the 1000-way layer with one for your classes, freezes the backbone, and leaves its BatchNorm layers in evaluation mode. The ImageNet running statistics stay fixed while the new layer trains. Novel mode builds the same ResNet-18 with `weights=None` and trains every parameter. The new final layer starts random in both modes.
 4. Adam steps on the trainable parameters. The plotted loss is the mean cross-entropy per image: the sum of the per-image losses divided by the number of images scored.
 5. After each novel-mode epoch, BatchNorm's stored averages are recomputed from the training images. On a handful of images the default momentum would leave those averages near their initialization, and the validation loss would describe that mismatch. Transfer mode leaves the ImageNet statistics where they are.
-6. One figure shows training and validation loss, and training and validation accuracy. Under it, a confusion matrix and per-class accuracy on the holdout. A short note says whether the two losses moved together.
+6. One figure shows training and validation loss, and training and validation accuracy. Under it, a confusion matrix and per-class accuracy on the holdout. A short note says whether the two losses moved together. A table keeps the last few runs, so a learning-rate sweep or a Transfer-versus-Novel pair can be compared after the charts move on.
 7. Prediction resizes and normalizes one image the same way as validation. The percent beside the label is that image's softmax share across your classes.
 
 The seed sets initialization, the holdout, the shuffle order, and the augmentation sequence. The same seed on a CPU repeats the run. GPU kernels can still differ by a small amount.
 
 Batch size starts at 2. ResNet-18's BatchNorm layers need more than one image in a batch. If the last training batch would be a single image, that image waits for another epoch rather than producing a NaN loss.
 
-## Concepts
-
-The panels in the app are the teaching copy. Each one is a short explanation of a control, and the numbers in the copy come from the same constants the training loop uses.
-
-| Topic | What the app is showing |
-| --- | --- |
-| Transfer and novel | Where the weights start, and which of them receive gradients. |
-| Learning rate | The size of the Adam step. The slider offers a few sizes, from 0.0001 to 0.03. |
-| Batch size | How many images are scored before each update. |
-| Epochs | One pass over the training images. |
-| Validation split | Images the optimizer never uses, scored after every epoch. |
-| Overfitting | Training loss falling while validation loss rises. The two curves share an axis so the gap is easy to see. |
-| Augmentation | A fresh flip and a small rotation each time a training image is loaded. |
-| Confidence | The softmax share. Read it next to the bar chart. |
-| Seed | Makes the split, the shuffle, the augmentation, and the initial weights repeatable. |
-| Shuffle | A new order of training images each epoch. |
+One-line help on the sidebar controls still defines the setting under the cursor. The lessons are the longer explanation.
 
 ## Layout
 
 ```
 main.py                  Streamlit entry point
+imagepro/curriculum.py   the eight lessons and their exercises
+imagepro/lesson_ui.py    lesson page, progress, and the run table
+imagepro/diagrams.py     the figures drawn in the lessons
+imagepro/demos.py        the small calculations behind those figures
+imagepro/measure.py      multiply-adds, memory parts, and timing summaries
 imagepro/data.py         loading, the holdout, augmentation
 imagepro/model.py        ResNet-18 and the parameter counts
 imagepro/training.py     the loop, metrics, prediction
 imagepro/insights.py     a few sentences about the finished curves
 imagepro/plots.py        loss, accuracy, confusion, class shares
 imagepro/examples.py     the built-in shapes
-imagepro/explanations.py the panels
+imagepro/explanations.py one-line help for the sidebar settings
 imagepro/ui.py           the page
 CITATION.cff             citation metadata
 LICENSE                  MIT license
@@ -118,6 +145,7 @@ Tests build every model with `weights=None` and block the weight download, so th
 - Transfer mode trains the new final layer. The ImageNet backbone, including its BatchNorm statistics, stays fixed. That is the contrast the page is built to show.
 - The optimizer is Adam for a fixed number of epochs.
 - The example drawings differ in color and in outline, so a short run has an easy signal. They are a teaching set.
+- The hardware counts cover convolutions and linear layers. They are not a full-chip benchmark, and the forward-output total is not peak memory.
 
 ## Citation
 

@@ -37,6 +37,7 @@ def test_license_and_changelog_name_the_release() -> None:
     assert "Copyright (c) 2025-2026 John Amodeo" in license_text
     assert "Permission is hereby granted" in license_text
     assert "## 1.0.0" in changelog
+    assert f"## {imagepro.__version__}" in changelog
     assert "Novel mode" in changelog
     assert "Augmentation" in changelog
 
@@ -74,3 +75,16 @@ def test_app_script_boots() -> None:
     assert not app.exception
     titles = [title.value for title in app.title]
     assert "How Neural Networks Learn: An Image Classifier Lab" in titles
+    labels = [button.label for button in app.button]
+    assert "Training lab" in labels
+    assert any("Pixels" in label for label in labels)
+    markdown = " ".join(getattr(item, "value", "") for item in app.markdown)
+    assert "Learning objectives" in markdown
+    batch = next(item for item in app.sidebar.number_input if "Batch" in item.label)
+    assert batch.value == 4
+    app.button(key="nav-hardware").click().run()
+    assert not app.exception
+    assert any("Exercise" in getattr(item, "value", "") for item in app.markdown)
+    app.button(key="nav-lab").click().run()
+    assert not app.exception
+    assert any(button.label == "Train model" for button in app.button)
