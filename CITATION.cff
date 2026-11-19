@@ -7,7 +7,7 @@ abstract: >-
   pixels and loss to evaluation and the hardware that runs the arithmetic.
   Upload two or more labeled image sets, or use the built-in shapes, and
   train a ResNet-18 from ImageNet weights or from scratch.
-version: 1.1.0
+version: 1.1.1
 date-released: 2026-11-19
 license: MIT
 authors:
