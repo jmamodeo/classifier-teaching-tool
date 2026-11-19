@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6"]
 
 [project.urls]
 Homepage = "https://github.com/jmamodeo/classifier-teaching-tool"
@@ -58,3 +58,11 @@ known-first-party = ["imagepro"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --tb=short"
+
+[tool.coverage.run]
+source = ["imagepro"]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+skip_covered = true

@@ -132,10 +132,10 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -e ".[dev]"
 ruff check .
 ruff format --check .
-pytest
+pytest --cov
 ```
 
-Tests build every model with `weights=None` and block the weight download, so they stay offline and on CPU. GitHub Actions runs an import smoke test, Ruff, and pytest on Python 3.11, 3.12, and 3.13.
+Tests build every model with `weights=None` and block the weight download, so they stay offline and on CPU. The suite drives the real page with Streamlit's `AppTest`, including a one-epoch training run, and `pytest --cov` fails if coverage of `imagepro` drops below the floor set in `pyproject.toml`. GitHub Actions runs an import smoke test, Ruff, and `pytest --cov` on Python 3.11, 3.12, and 3.13.
 
 ## Boundaries
 

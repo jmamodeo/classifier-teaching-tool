@@ -11,3 +11,5 @@ dist/
 build/
 .streamlit/secrets.toml
 .idea/
+.coverage
+htmlcov/
