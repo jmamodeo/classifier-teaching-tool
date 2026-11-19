@@ -53,6 +53,8 @@ def snapshot(
         device="cpu",
         signature=signature,
         trained=trained,
+        inference_backends=("cpu",),
+        precision="float32",
     )
 
 
@@ -197,13 +199,14 @@ def test_progress_counts_opened_sections() -> None:
 def test_exercise_checkbox_persists_across_lessons() -> None:
     app = open_lessons()
     first, second = SECTIONS[0].key, SECTIONS[1].key
-    assert f"0 of {len(SECTIONS)} exercises marked done." in captions(app)
+    total = sum(len(section.exercise_items()) for section in SECTIONS)
+    assert f"0 of {total} exercises marked done." in captions(app)
 
     app.checkbox(key=f"done-{first}").check().run()
     app.button(key="nav-next").click().run()
     assert app.session_state[PAGE_KEY] == second
     assert app.session_state[DONE_KEY] == {first}
-    assert f"1 of {len(SECTIONS)} exercises marked done." in captions(app)
+    assert f"1 of {total} exercises marked done." in captions(app)
     assert any(button.label.startswith("✓ ") for button in app.button)
 
     app.checkbox(key=f"done-{second}").check().run()

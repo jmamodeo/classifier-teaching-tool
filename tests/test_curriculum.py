@@ -66,11 +66,12 @@ def test_sections_form_a_curriculum() -> None:
     for section in SECTIONS:
         assert section.objectives
         assert section.blocks
-        assert section.exercise.instructions
-        assert section.exercise.look_for
-        assert section.exercise.question
-        assert len(section.exercise.answer) > 40
-        assert "default" in keep_sentence(section.exercise.changed).lower()
+        for _, exercise in section.exercise_items():
+            assert exercise.instructions
+            assert exercise.look_for
+            assert exercise.question
+            assert len(exercise.answer) > 40
+            assert "default" in keep_sentence(exercise.changed).lower()
     assert renderers_cover_the_lessons()
     assert visual_names() == set(VISUAL_RENDERERS)
 
@@ -93,7 +94,7 @@ def test_exercises_name_one_or_two_settings_and_keep_the_rest() -> None:
     assert "Transfer" in learning_keep
     hardware_keep = keep_sentence(("batch_size", "device"))
     assert "batch size" not in hardware_keep
-    assert "Hardware" not in hardware_keep
+    assert "Training device" not in hardware_keep
     assert "learning rate" in hardware_keep
     whole = " ".join(exercise.instructions for exercise in by_key.values())
     assert "Built-in shapes" in whole or "built-in shapes" in whole
@@ -107,6 +108,20 @@ def test_exercises_name_one_or_two_settings_and_keep_the_rest() -> None:
     images = " ".join(paragraph for block in image_section.blocks for paragraph in block.paragraphs)
     assert str(IMAGE_SIZE) in images
     assert f"{3 * IMAGE_SIZE * IMAGE_SIZE:,}" in images
+
+
+def test_hardware_exercises_match_the_panel_and_measurements() -> None:
+    hardware = SECTIONS[-1]
+    training, neural_engine, precision, all_units = hardware.exercise_items()
+    assert "Train s/epoch" in training[1].look_for
+    assert all(unit in neural_engine[1].instructions for unit in ("CPU_AND_NE", "CPU_AND_GPU"))
+    assert "CPU_ONLY" in neural_engine[1].instructions
+    assert precision[1].changed == ("precision",)
+    assert "top-1 agreement" in precision[1].answer
+    assert "median latency" in precision[1].look_for
+    assert "not proof" in all_units[1].answer
+    text = " ".join(paragraph for block in hardware.blocks for paragraph in block.paragraphs)
+    assert all(word in text for word in ("CPU", "GPU", "Neural Engine", "Training", "Inference"))
 
 
 def test_lesson_figures_draw_without_a_trained_model() -> None:

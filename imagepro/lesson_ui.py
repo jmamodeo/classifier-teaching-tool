@@ -10,8 +10,17 @@ import matplotlib.pyplot as plt
 import streamlit as st
 import torch
 from matplotlib.figure import Figure
+from PIL import Image
 from torch import nn
 
+from imagepro.coreml import (
+    COMPUTE_UNITS,
+    MEASURE_RUNS,
+    WARMUP_RUNS,
+    Export,
+    Precision,
+    benchmark_export,
+)
 from imagepro.curriculum import (
     LAB_PAGE,
     SECTION_BY_KEY,
@@ -82,7 +91,7 @@ from imagepro.measure import (
 )
 from imagepro.model import LearningMode, architecture_parameter_counts
 from imagepro.plots import VAL_COLOR, plot_confusion
-from imagepro.training import TrainResult, available_devices, resolve_batching
+from imagepro.training import TrainResult, resolve_batching
 
 PAGE_KEY = "curriculum_page"
 VISITED_KEY = "curriculum_visited"
@@ -90,6 +99,7 @@ LAST_SECTION_KEY = "curriculum_last_section"
 DONE_KEY = "curriculum_done"
 RUN_LOG_KEY = "run_log"
 _RUN_LIMIT = 8
+_EXERCISE_IDS = frozenset(key for section in SECTIONS for key, _ in section.exercise_items())
 
 
 class TrainedRun(Protocol):
@@ -102,6 +112,7 @@ class TrainedRun(Protocol):
     signature: tuple[object, ...]
     mode: LearningMode
     details: str
+    val_images: tuple[Image.Image, ...]
 
 
 @dataclass(frozen=True)
@@ -118,6 +129,8 @@ class LabSnapshot:
     device: str
     signature: tuple[object, ...] | None
     trained: TrainedRun | None
+    inference_backends: tuple[str, ...]
+    precision: Precision
 
 
 def run_log() -> tuple[RunRecord, ...]:
@@ -208,7 +221,7 @@ def open_page(page: str) -> None:
 
 
 def _exercise_done() -> set[str]:
-    """Section keys whose exercise checkbox is checked.
+    """IDs whose exercise checkbox is checked.
 
     The checkbox widget is only created for the open lesson. Streamlit drops a
     widget key that was not rendered, so the durable record is this set.
@@ -223,14 +236,14 @@ def _exercise_done() -> set[str]:
 def _sync_exercise_done() -> None:
     """Copy any checkbox that is still in state into the durable set."""
     done = _exercise_done()
-    for section in SECTIONS:
-        widget_key = f"done-{section.key}"
+    for exercise_id in _EXERCISE_IDS:
+        widget_key = f"done-{exercise_id}"
         if widget_key not in st.session_state:
             continue
         if st.session_state[widget_key]:
-            done.add(section.key)
+            done.add(exercise_id)
         else:
-            done.discard(section.key)
+            done.discard(exercise_id)
 
 
 def _visit(page: str) -> None:
@@ -242,9 +255,10 @@ def _visit(page: str) -> None:
 def _navigator(page: str) -> None:
     total = len(SECTIONS)
     opened = len(set(st.session_state.get(VISITED_KEY, ())) & {item.key for item in SECTIONS})
-    done = sum(1 for item in SECTIONS if item.key in _exercise_done())
+    completed = _exercise_done()
+    done = len(completed & _EXERCISE_IDS)
     st.progress(opened / total, text=f"{opened} of {total} sections opened")
-    st.caption(f"{done} of {total} exercises marked done.")
+    st.caption(f"{done} of {len(_EXERCISE_IDS)} exercises marked done.")
     previous, following, lab = st.columns([1, 1, 2])
     if page == LAB_PAGE:
         last = st.session_state.get(LAST_SECTION_KEY)
@@ -287,7 +301,7 @@ def _navigator(page: str) -> None:
     )
     columns = st.columns(total)
     for column, section in zip(columns, SECTIONS, strict=True):
-        mark = "✓ " if section.key in _exercise_done() else ""
+        mark = "✓ " if all(key in completed for key, _ in section.exercise_items()) else ""
         column.button(
             f"{mark}{section.number} {section.short}",
             key=f"nav-{section.key}",
@@ -307,7 +321,8 @@ def _render_section(section: Section, snapshot: LabSnapshot) -> None:
             st.markdown(f"- {objective}")
     for block in section.blocks:
         _render_block(block, snapshot)
-    _render_exercise(section.exercise, section.key)
+    for exercise_id, exercise in section.exercise_items():
+        _render_exercise(exercise, exercise_id)
     st.caption(
         "The training lab is on this page, below this lesson. The Training lab button "
         "hides the lesson so the lab sits at the top."
@@ -329,7 +344,7 @@ def _render_block(block: Block, snapshot: LabSnapshot) -> None:
     renderer(snapshot)
 
 
-def _render_exercise(exercise: Exercise, section_key: str) -> None:
+def _render_exercise(exercise: Exercise, exercise_id: str) -> None:
     with st.container(border=True):
         st.markdown("**Exercise**")
         st.markdown("What to do")
@@ -342,9 +357,9 @@ def _render_exercise(exercise: Exercise, section_key: str) -> None:
         st.write(exercise.question)
         with st.expander("Show the check"):
             st.write(exercise.answer)
-        widget_key = f"done-{section_key}"
+        widget_key = f"done-{exercise_id}"
         if widget_key not in st.session_state:
-            st.session_state[widget_key] = section_key in _exercise_done()
+            st.session_state[widget_key] = exercise_id in _exercise_done()
         st.checkbox("Mark this exercise done", key=widget_key)
 
 
@@ -732,14 +747,85 @@ def _hardware(snapshot: LabSnapshot) -> None:
 
 
 def _devices(snapshot: LabSnapshot) -> None:
-    listed = ", ".join(label for label, _device in available_devices())
-    st.write(f"This installation can use: {listed}. The sidebar is on {snapshot.device_label}.")
+    st.write(f"Training device in the sidebar: {snapshot.device_label}.")
     render_run_log()
     if any(item.peak_memory_bytes for item in run_log()):
         st.caption(
             "CUDA peak is the allocator's high-water mark on the training side of the "
             "epoch, including a Novel-mode BatchNorm refresh and not the validation pass. "
             "CPU and MPS runs leave that cell empty."
+        )
+
+
+def render_verification(exported: Export) -> None:
+    """Show the held-out comparison for the selected package."""
+    if exported.verification is not None:
+        result = exported.verification
+        st.write(
+            f"Against float32 PyTorch on {result.image_count} validation images: "
+            f"top-1 agreement {result.top1_agreement:.1%}; "
+            f"max absolute probability difference {result.max_abs_difference:.6g}."
+        )
+    if exported.verification_error is not None:
+        st.error(f"Could not verify the Core ML model: {exported.verification_error}")
+
+
+def _on_device(snapshot: LabSnapshot) -> None:
+    trained = snapshot.trained
+    total = (
+        trained.result.total_parameters
+        if trained is not None
+        else resnet18_structure(snapshot.class_count).total_parameters
+    )
+    st.write(
+        f"{total:,} parameters: float32 weights take {format_bytes(total * 4)}; "
+        f"float16 weights take {format_bytes(total * 2)}. "
+        "Packages also contain metadata and other tensors."
+    )
+    if trained is None:
+        st.info("Train a model to time inference. Export it in the lab to measure package size.")
+        return
+    if not _run_matches(snapshot):
+        st.warning("These measurements use the previous run; the lab settings have changed.")
+    precision = snapshot.precision
+    backends = snapshot.inference_backends
+    exports = st.session_state.get("coreml_exports", {})
+    exported = exports.get((trained.signature, precision))
+    if exported is not None:
+        st.write(f"Measured {precision} package: {format_bytes(exported.size_bytes)}")
+        render_verification(exported)
+    else:
+        st.info(f"Convert to Core ML in the lab to measure the {precision} package.")
+    if not backends:
+        st.info("Select an inference backend in Hardware to measure it.")
+        return
+    if exported is None and any(backend in COMPUTE_UNITS for backend in backends):
+        return
+    key = (trained.signature, precision, backends)
+    benchmarks = st.session_state.setdefault("coreml_benchmarks", {})
+    if st.button("Measure on-device inference"):
+        try:
+            with st.spinner("Measuring batch-one inference..."):
+                benchmarks[key] = benchmark_export(
+                    exported, trained.model, trained.val_images[0], backends=backends
+                )
+        except Exception as exc:
+            st.error(f"Could not measure inference: {exc}")
+    if key in benchmarks:
+        timings = benchmarks[key]
+        table = {
+            "Device": [item.name for item in timings],
+            "Median ms": [
+                f"{item.median_ms:.3f}" if item.median_ms is not None else "Unavailable"
+                for item in timings
+            ],
+        }
+        if any(item.error for item in timings):
+            table["Error"] = [item.error or "" for item in timings]
+        st.table(table)
+        st.caption(
+            f"Batch 1, {WARMUP_RUNS} warmup runs, {MEASURE_RUNS} measured runs. "
+            f"Core ML uses the selected export precision ({precision}); PyTorch uses float32."
         )
 
 
@@ -781,6 +867,7 @@ VISUAL_RENDERERS = {
     "evaluation": _evaluation,
     "hardware": _hardware,
     "devices": _devices,
+    "on_device": _on_device,
 }
 
 

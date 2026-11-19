@@ -52,7 +52,7 @@ def texts(elements: Sequence[Any]) -> list[str]:
 def configure_tiny_run(app: AppTest, mode: LearningMode = LearningMode.NOVEL) -> AppTest:
     """Smallest run the controls allow: one epoch, batch of two, CPU, seed 0."""
     app.radio(key="source").set_value("example")
-    by_label(app.sidebar.selectbox, "Hardware").select("CPU")
+    by_label(app.sidebar.radio, "Training device").set_value("cpu")
     by_label(app.sidebar.selectbox, "Learning mode").set_value(mode)
     by_label(app.sidebar.number_input, "Batch size").set_value(2)
     by_label(app.sidebar.slider, "Epochs").set_value(1)

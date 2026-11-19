@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Core ML classifier export in float32 or float16, with a downloadable package and validation agreement on macOS.
+- An on-device inference section in the hardware lesson, with package sizes and machine-measured inference timings on macOS.
+- `coremltools` as a dependency, pinned to 9.0 in `requirements.txt`.
+- README screenshots of the export step, the Hardware panel, and the Lesson 8 timing table, with CPU and Metal GPU training times and Core ML and PyTorch inference times measured on an Intel Mac Pro.
+- A Hardware sidebar for the training device, inference backends, and Core ML export precision, with reasons for disabled choices.
+- Hardware exercises for CPU and GPU training, Neural Engine inference, export precision, and Core ML ALL.
+
+### Changed
+
+- Lesson 8 times only the selected backends and uses the sidebar precision for the Core ML package. CPU_AND_NE is disabled without Apple silicon, and PyTorch timing works without Core ML.
+
 ## 1.1.0 - 2026-11-18
 
 ### Added

@@ -9,6 +9,7 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 import imagepro
+from imagepro.curriculum import SECTIONS
 from imagepro.data import MAX_ROTATION_DEGREES
 from imagepro.explanations import CONCEPT_ORDER, CONCEPTS
 from imagepro.training import DEFAULT_LEARNING_RATE, LEARNING_RATES, MIN_BATCH_SIZE
@@ -94,21 +95,22 @@ def test_app_script_boots() -> None:
 def test_exercise_done_persists_across_lessons() -> None:
     """A checked exercise stays checked after the lesson is left and reopened."""
     app = AppTest.from_file(str(ROOT / "main.py"), default_timeout=60)
+    total = sum(len(section.exercise_items()) for section in SECTIONS)
     app.run()
     assert not app.exception
     app.checkbox(key="done-images").check().run()
     assert not app.exception
     assert app.checkbox(key="done-images").value is True
-    assert _exercises_marked(app) == "1 of 8 exercises marked done."
+    assert _exercises_marked(app) == f"1 of {total} exercises marked done."
 
     app.button(key="nav-neuron").click().run()
     assert not app.exception
-    assert _exercises_marked(app) == "1 of 8 exercises marked done."
+    assert _exercises_marked(app) == f"1 of {total} exercises marked done."
 
     app.button(key="nav-images").click().run()
     assert not app.exception
     assert app.checkbox(key="done-images").value is True
-    assert _exercises_marked(app) == "1 of 8 exercises marked done."
+    assert _exercises_marked(app) == f"1 of {total} exercises marked done."
 
 
 def _exercises_marked(app: AppTest) -> str:

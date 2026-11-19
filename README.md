@@ -6,13 +6,15 @@ A Streamlit lab for learning how an image classifier works, and how that work la
 
 Two modes share the images, the loss, and the learning rate. **Transfer** starts from ImageNet weights and trains a new final layer while the backbone stays frozen. **Novel** starts from random weights and trains every layer.
 
+The **Hardware** sidebar lets you choose where to train, which inference backends to time, and the precision of the Core ML export.
+
 ![First open: eight lesson buttons, the objectives for Images as numbers, and the three color channels of a built-in drawing.](docs/home.png)
 
 ## The curriculum
 
 The lessons are in order, and any of them can be opened from the numbered buttons. A bar counts how many sections have been opened. A caption counts how many exercises have been marked done. Marking an exercise done is a checkbox, not a gate. **Training lab**, in the lesson bar, hides the lesson and leaves the training controls on the page. The settings stay in the sidebar the whole time.
 
-Each lesson states its objectives, explains the idea with a diagram or a count taken from this model, and ends with an exercise. The exercise names which settings to change, lists the ones to leave at their defaults, says what to look for, and hides a short check until you open it.
+Each lesson states its objectives, explains the idea with a diagram or a count taken from this model, and ends with exercises. Each exercise names which settings to change, lists the ones to leave at their defaults, says what to look for, and hides a short check until you open it.
 
 | | Lesson | Exercise |
 | --- | --- | --- |
@@ -23,7 +25,7 @@ Each lesson states its objectives, explains the idea with a diagram or a count t
 | 5 | Epochs, batches, and overfitting. The holdout, augmentation, and the seed. | Train once at 15 epochs. Then train at 5 epochs with augmentation off. |
 | 6 | Transfer learning and training from scratch. Frozen layers and BatchNorm statistics. | Train Transfer, then Novel, at the defaults. Read the trainable counts and the BatchNorm caption. |
 | 7 | Accuracy, confusion, and confidence. What the percent beside a prediction is. | Read the confusion matrix of a default run. |
-| 8 | Arithmetic, memory, and the device. Multiply-adds, what sits in memory, and images per second from your own run. | Train at batch size 2, then at batch size 8. If the hardware menu lists a second device, train once on it at batch size 4. |
+| 8 | Arithmetic, memory, and the device. Multiply-adds, memory, on-device inference, and measurements from your own machine. | Compare CPU and GPU training across batch sizes. Compare export precisions and test the available inference backends, including Neural Engine and ALL where supported. |
 
 ![The exercise at the end of Images as numbers, naming the settings to leave alone.](docs/exercise.png)
 
@@ -53,21 +55,66 @@ A new image takes the validation path: resize and normalize, with no flip and no
 
 ![A held-out circle classified as circle at 94.5% softmax share.](docs/prediction.png)
 
+After training, choose export precision in the **Hardware** sidebar, then convert and download a zipped Core ML `.mlpackage`. The export includes the image normalization and class labels. Conversion works on Linux and macOS. Core ML verification and timing require macOS; PyTorch timing does not.
+
+![The export step on macOS: the export precision set in Hardware, the float32 package size, and its agreement with PyTorch on the six validation images.](docs/export.png)
+
 The chart screenshots above are a default run: transfer mode, CPU, Adam at learning rate 0.001, batch size 4, 5 epochs, 20% holdout, seed 0, shuffle and augmentation on.
 
-## What the hardware lesson measures
+## Hardware controls and measurements
+
+The **Hardware** sidebar has one control for the training device, checkboxes for inference backends, and one export precision control. Training always uses float32 on CPU, CUDA, or Metal (MPS). Unavailable choices are disabled and say why. The Neural Engine is for Core ML inference on Apple silicon, not training.
+
+All available inference backends start checked. Lesson 8 measures just the checked backends on the same image. Core ML timing uses the package for the selected precision; PyTorch stays in float32 and can be timed without a package when no Core ML backend is selected. Switch precision and export again to compare size, median latency, top-1 agreement, and the largest probability difference against float32 PyTorch.
 
 The counts are computed from this ResNet-18 at the class count and batch size in the sidebar. A multiply-add is one multiplication of a weight by an input, added into a total, inside a convolution or a linear layer. Bias, BatchNorm, ReLU, and pooling are left out of the count. FLOPs, on this page, are twice the multiply-adds. A training step also runs a backward pass, which is not in that number.
 
 Memory is split into parts: parameter bytes, gradient bytes for the trainable parameters, two float32 Adam buffers per trainable parameter, BatchNorm buffers, and a forward-output parts list. The parts list adds up the tensor each leaf layer returned. Those tensors are not all stored at once, so the total is not a memory-meter reading. Parameter bytes and Adam bytes do not grow with the batch. The forward-output list does.
 
-Images per second come from the run: training images scored, divided by the time spent in the training pass, including loading the images and the optimizer step. Validation time is reported separately. When the run used CUDA, the page also reports the allocator's peak. CPU and Apple silicon (MPS) runs do not invent a peak.
+Images per second come from the run: training images scored, divided by the time spent in the training pass, including loading the images and the optimizer step. Validation time is reported separately. When the run used CUDA, the page also reports the allocator's peak. CPU and Metal GPU (MPS) runs do not invent a peak.
 
-The screenshot below was taken before Built-in shapes was selected, so the upload form still had two classes. The sentence in the picture is the count for that moment: batch 4, 2 classes, Transfer. Choosing the shapes changes the class count to three and the page recomputes.
+The sentence in the screenshot below is the count for batch 4, 3 classes (the built-in shapes), Transfer. Change the class count or the batch size in the sidebar and the page recomputes.
 
-![The hardware lesson: multiply-adds for one forward pass, and the memory parts for that model and batch.](docs/hardware.png)
+![The hardware lesson with the Hardware sidebar: multiply-adds for one forward pass, and the memory parts for that model and batch.](docs/hardware.png)
 
-The lesson describes why a GPU or the Apple silicon backend can run the same multiplies in parallel, and why memory bandwidth matters. It does not quote a speed for hardware that is not in the menu. The app trains in float32. It does not switch numeric types, so it has no measured comparison of precision to show.
+The lesson describes on-device privacy, network latency, energy, and Core ML compute units. Compare training seconds per epoch by device and batch size in the run log. In the inference table, similar latencies can suggest how Core ML ALL ran, but they do not prove which compute unit ran a layer.
+
+The Hardware panel on an Intel Mac Pro (Xeon W-3245, AMD Radeon Pro W5700X, macOS 26.5.2). CUDA is unavailable and CPU_AND_NE is disabled because that Mac has no Neural Engine:
+
+![The Hardware sidebar panel with the NVIDIA GPU and Core ML CPU_AND_NE options greyed out and a reason under each.](docs/hardware-panel.png)
+
+Lesson 8 on the same Mac, with the selected backends in one timing table:
+
+![Lesson 8 on an Intel Mac Pro: the on-device section, package size, and the timing table for the five available backends.](docs/hardware-timing.png)
+
+The measurements below came from that Mac on 2026-11-19, with other programs running, so treat them as one machine on one afternoon, not a benchmark. PyTorch publishes no Intel Mac wheels after 2.2, so this run used Python 3.12.16, PyTorch 2.2.2, and coremltools 9.0 rather than the `requirements.txt` pins.
+
+Training seconds per epoch on the built-in shapes (median of 3 epochs; 64 images per class gives 153 training images; the default 8 per class gives 18). Metal (MPS) is the Mac's Metal GPU:
+
+| Mode | Training images | Batch | CPU s/epoch | Metal (MPS) s/epoch |
+| --- | --- | --- | --- | --- |
+| Transfer | 18 | 4 | 0.314 | 0.149 |
+| Transfer | 153 | 4 | 2.386 | 1.146 |
+| Transfer | 153 | 16 | 2.158 | 0.486 |
+| Transfer | 153 | 64 | 1.669 | 0.340 |
+| Novel | 18 | 4 | 0.708 | 0.614 |
+| Novel | 153 | 4 | 6.069 | 4.949 |
+| Novel | 153 | 16 | 4.296 | 1.719 |
+| Novel | 153 | 64 | 3.431 | 1.421 |
+
+The first Novel epoch on Metal with 18 images took 24.215 s against 0.612 s and 0.614 s for the next two, so the first epoch on a GPU can include one-time setup. The first epochs of the larger Metal runs were also slower than the later ones in some rows (for example Novel, batch 16: 6.786 s, then 1.712 s and 1.719 s).
+
+Batch-one inference, median of 10 runs after 3 warmup runs, repeated 3 times (the range across the repeats). PyTorch rows pool all 6 repeats because PyTorch stays in float32:
+
+| Backend | float32 package (ms) | float16 package (ms) |
+| --- | --- | --- |
+| Core ML CPU_ONLY | 23.010 to 23.779 | 25.311 to 25.757 |
+| Core ML CPU_AND_GPU | 4.399 to 7.433 | 3.887 to 4.405 |
+| Core ML ALL | 4.430 to 5.589 | 3.780 to 4.621 |
+| PyTorch CPU (float32) | 23.650 to 36.953 | same pool |
+| PyTorch Metal GPU (MPS, float32) | 13.506 to 14.813 | same pool |
+
+The float32 package was 44,726,483 bytes and the float16 package 22,383,231 bytes. Both matched PyTorch's top-1 label on all six validation images. The largest probability difference was 9.31e-09 for float32 and 2.64e-04 for float16.
 
 ## Quickstart
 
@@ -82,7 +129,7 @@ pip install -r requirements.txt
 streamlit run main.py
 ```
 
-`requirements.txt` pins the versions the app was tested with. The CPU builds satisfy those pins, so the last install keeps them. With a GPU, skip the PyTorch line and `pip install -r requirements.txt` takes the default PyTorch wheel. The hardware menu lists CUDA when PyTorch reports it, and Apple silicon (MPS) when that backend is available.
+`requirements.txt` pins the versions the app was tested with. The CPU builds satisfy those pins, so the last install keeps them. With a GPU, skip the PyTorch line and `pip install -r requirements.txt` takes the default PyTorch wheel.
 
 The first transfer run downloads the ImageNet ResNet-18 weights, about 45 MB, from `download.pytorch.org`. Novel mode trains from random initialization and does not download weights.
 
@@ -111,6 +158,8 @@ imagepro/lesson_ui.py    lesson page, progress, and the run table
 imagepro/diagrams.py     the figures drawn in the lessons
 imagepro/demos.py        the small calculations behind those figures
 imagepro/measure.py      multiply-adds, memory parts, and timing summaries
+imagepro/coreml.py       Core ML export, verification, and inference timing
+imagepro/hardware.py     training and inference availability
 imagepro/data.py         loading, the holdout, augmentation
 imagepro/model.py        ResNet-18 and the parameter counts
 imagepro/training.py     the loop, metrics, prediction

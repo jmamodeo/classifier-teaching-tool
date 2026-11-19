@@ -9,8 +9,10 @@ import matplotlib.pyplot as plt
 import streamlit as st
 import torch
 from matplotlib.figure import Figure
+from PIL import Image
 
 from imagepro import __version__
+from imagepro.coreml import Export, Precision, export_model
 from imagepro.data import (
     MAX_CLASSES,
     MIN_CLASSES,
@@ -28,12 +30,14 @@ from imagepro.data import (
 from imagepro.errors import DatasetError, TrainingError, UserFacingError
 from imagepro.examples import EXAMPLE_IMAGES_PER_CLASS, make_shape_dataset
 from imagepro.explanations import CONCEPTS
+from imagepro.hardware import NEURAL_ENGINE_REASON, detect_hardware
 from imagepro.insights import summarize_training
 from imagepro.lesson_ui import (
     LabSnapshot,
     append_run,
     render_curriculum,
     render_run_log,
+    render_verification,
 )
 from imagepro.measure import format_bytes, make_run_record, summarize_timing
 from imagepro.model import LearningMode, architecture_parameter_counts
@@ -50,8 +54,8 @@ from imagepro.training import (
     MAX_BATCH_SIZE,
     MAX_EPOCHS,
     MIN_BATCH_SIZE,
+    TRAINING_DEVICE_LABELS,
     TrainResult,
-    available_devices,
     predict_probabilities,
     resolve_batching,
     train_classifier,
@@ -80,6 +84,9 @@ class Settings:
     shuffle: bool
     augment: bool
     seed: int
+    inference_backends: tuple[str, ...]
+    precision: Precision
+    coreml_reason: str | None
 
     @property
     def val_fraction(self) -> float:
@@ -100,6 +107,7 @@ class Artifact:
     train_size: int
     val_size: int
     details: str
+    val_images: tuple[Image.Image, ...]
 
 
 APP_TITLE = "How Neural Networks Learn: An Image Classifier Lab"
@@ -117,7 +125,7 @@ def main() -> None:
     st.title(APP_TITLE)
     st.caption(
         "Eight lessons on how this image classifier learns, and a training lab that "
-        "stays on the page. Each lesson ends with an exercise that names the settings "
+        "stays on the page. The exercises name the settings "
         "to change. Transfer mode starts from ImageNet and trains a new final layer. "
         "Novel mode trains every layer from random weights."
     )
@@ -175,12 +183,15 @@ def _render_workspace(settings: Settings) -> LabSnapshot:
             artifact = _run_training(split, groups, settings, batch_note)
             if artifact is not None:
                 st.session_state.artifact = artifact
+                st.session_state.coreml_exports = {}
+                st.session_state.coreml_benchmarks = {}
 
     stored = st.session_state.get("artifact")
     trained = stored if isinstance(stored, Artifact) else None
     signature = _signature(settings, groups)
     if trained is not None:
         _render_results(trained, signature)
+        _render_export(trained, settings.precision, settings.coreml_reason)
         _render_prediction(trained)
         st.markdown("**Recent runs**")
         render_run_log()
@@ -198,6 +209,8 @@ def _render_workspace(settings: Settings) -> LabSnapshot:
         device=settings.device,
         signature=signature,
         trained=trained,
+        inference_backends=settings.inference_backends,
+        precision=settings.precision,
     )
 
 
@@ -217,21 +230,46 @@ def _sidebar() -> Settings:
     concepts = CONCEPTS
     st.sidebar.header("Settings")
     st.sidebar.caption("The lessons name which of these to move, and which to leave.")
-    devices = available_devices()
-    device_label = st.sidebar.selectbox(
-        "Hardware",
-        options=[label for label, _device in devices],
-        help=(
-            "Training runs on this machine. CUDA and Apple silicon appear when PyTorch can "
-            "use them."
-        ),
-    )
-    device = dict(devices)[str(device_label)]
-    if device == "cpu" and len(devices) == 1:
-        st.sidebar.caption(
-            "No GPU detected. Training will use the CPU. A few epochs on a small set is enough "
-            "to see the curves."
+    hardware = detect_hardware()
+    with st.sidebar.container(border=True):
+        st.subheader("Hardware")
+        devices = {option.key: option.label for option in hardware.training if option.available}
+        device = st.radio(
+            "Training device", options=tuple(devices), format_func=devices.__getitem__
         )
+        for option in hardware.training:
+            if option.reason is not None:
+                st.checkbox(option.label, disabled=True, key=f"training-{option.key}")
+                st.caption(option.reason)
+        st.caption("Neural Engine: cannot train. Core ML runs it for inference only.")
+
+        st.markdown("**Inference backends**")
+        backends = []
+        for option in hardware.inference:
+            checked = st.checkbox(
+                option.label,
+                value=option.available,
+                disabled=not option.available,
+                key=f"inference-{option.key}",
+            )
+            if option.reason is not None:
+                st.caption(option.reason)
+                if (
+                    option.key == "CPU_AND_NE"
+                    and not hardware.apple_silicon
+                    and option.reason != NEURAL_ENGINE_REASON
+                ):
+                    st.caption(NEURAL_ENGINE_REASON)
+            if checked and option.available:
+                backends.append(option.key)
+        precision: Precision = st.radio(
+            "Precision",
+            options=("float32", "float16"),
+            horizontal=True,
+            key="coreml_precision",
+            help="Applies to the Core ML export and Lesson 8. PyTorch stays in float32.",
+        )
+    coreml_reason = next(option.reason for option in hardware.inference if option.key == "CPU_ONLY")
 
     mode = st.sidebar.selectbox(
         "Learning mode",
@@ -304,7 +342,7 @@ def _sidebar() -> Settings:
         )
     )
     return Settings(
-        device_label=str(device_label),
+        device_label=devices[device],
         device=device,
         mode=mode,
         learning_rate=learning_rate,
@@ -314,6 +352,9 @@ def _sidebar() -> Settings:
         shuffle=shuffle,
         augment=augment,
         seed=seed,
+        inference_backends=tuple(backends),
+        precision=precision,
+        coreml_reason=coreml_reason,
     )
 
 
@@ -564,6 +605,7 @@ def _run_training(
         train_size=len(split.train_images),
         val_size=len(split.val_images),
         details=_details(settings, batch_note),
+        val_images=split.val_images,
     )
 
 
@@ -662,10 +704,7 @@ def _timing_line(artifact: Artifact) -> str:
     timing = summarize_timing(artifact.result.history)
     if timing.images_per_second is None:
         return ""
-    name = next(
-        (label for label, value in available_devices() if value == artifact.device),
-        artifact.device,
-    )
+    name = TRAINING_DEVICE_LABELS.get(artifact.device, artifact.device)
     text = (
         f"Measured on {name}: the training pass averaged {timing.mean_train_seconds:.2f} s "
         f"per epoch, {timing.images_per_second:.1f} images/s. That includes loading the "
@@ -699,6 +738,33 @@ def _render_class_table(artifact: Artifact) -> None:
             "Accuracy": accuracies,
         }
     )
+
+
+def _render_export(artifact: Artifact, precision: Precision, reason: str | None) -> None:
+    st.subheader("Export to Core ML")
+    st.caption(f"Export precision: {precision} (set in Hardware).")
+    key = (artifact.signature, precision)
+    exports = st.session_state.setdefault("coreml_exports", {})
+    if st.button("Convert to Core ML") and key not in exports:
+        try:
+            with st.spinner("Converting the model to Core ML..."):
+                exports[key] = export_model(
+                    artifact.model, artifact.class_names, artifact.val_images, precision
+                )
+        except Exception as exc:
+            st.error(f"Could not convert the model to Core ML: {exc}")
+    exported = exports.get(key)
+    if isinstance(exported, Export):
+        st.download_button(
+            "Download Core ML package",
+            exported.zip_bytes,
+            file_name="imagepro-classifier.mlpackage.zip",
+            mime="application/zip",
+        )
+        st.write(f"Package size ({precision}): {format_bytes(exported.size_bytes)}")
+        render_verification(exported)
+    if reason:
+        st.info(f"{reason} You can still convert and download the package.")
 
 
 def _render_prediction(artifact: Artifact) -> None:

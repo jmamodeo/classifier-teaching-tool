@@ -1,6 +1,6 @@
 """The lesson sequence.
 
-Each section has objectives, a few blocks of explanation, and one exercise.
+Each section has objectives, a few blocks of explanation, and exercises.
 Numbers that the training code also uses are filled in from those constants.
 Diagrams are drawn by the app from the block's ``visual`` name; this module
 does not import Streamlit.
@@ -59,6 +59,7 @@ class Exercise:
     look_for: str
     question: str
     answer: str
+    key: str = ""
 
 
 @dataclass(frozen=True)
@@ -72,13 +73,23 @@ class Section:
     objectives: tuple[str, ...]
     blocks: tuple[Block, ...]
     exercise: Exercise
+    extra_exercises: tuple[Exercise, ...] = ()
+
+    def exercise_items(self) -> tuple[tuple[str, Exercise], ...]:
+        """Return the exercises with their durable checkbox IDs."""
+        return (
+            (self.key, self.exercise),
+            *((f"{self.key}-{item.key}", item) for item in self.extra_exercises),
+        )
 
 
 def default_phrases() -> tuple[tuple[str, str], ...]:
     """Sidebar settings in menu order, phrased as the value the widgets start on."""
     rate = f"{DEFAULT_LEARNING_RATE:.4g}"
     return (
-        ("device", "Hardware on CPU (the first choice in the menu)"),
+        ("device", "Training device on CPU"),
+        ("inference_backends", "all available inference backends checked"),
+        ("precision", "export precision on float32"),
         ("mode", "Learning mode on Transfer"),
         ("learning_rate", f"learning rate at {rate}"),
         ("batch_size", f"batch size at {DEFAULT_BATCH_SIZE}"),
@@ -774,6 +785,7 @@ def _build() -> tuple[Section, ...]:
                 "Describe a step as multiply-adds plus memory for weights and activations.",
                 "Separate the counts this page computes from the times your run measures.",
                 "Relate batch size to images per second and to activation memory.",
+                "Compare on-device inference, compute units, and export precision.",
             ),
             blocks=(
                 Block(
@@ -815,28 +827,26 @@ def _build() -> tuple[Section, ...]:
                         "a memory meter. The backward pass keeps extra tensors. Transfer "
                         "mode needs fewer of them, because the frozen backbone receives "
                         "no gradients.",
-                        "This app trains in float32, four bytes per number. Narrower "
-                        "types use fewer bytes per number and, on some hardware, faster "
-                        "arithmetic. This app does not switch types, so it has no "
-                        "measured comparison to show.",
+                        "This app trains in float32, four bytes per number. Export can "
+                        "use float16 instead. That choice affects the exported model, "
+                        "not the training run.",
                     ),
                 ),
                 Block(
                     heading="Why a GPU or an accelerator changes the clock",
                     paragraphs=(
-                        "A CPU runs these dot products correctly. It has fewer parallel "
-                        "arithmetic units for a grid of identical multiplies, so the "
-                        "same forward pass usually takes longer. A GPU, and the Apple "
-                        "silicon backend when it is available, is built to run a great "
-                        "many of those multiplies at once. The other limit is moving "
-                        "weights and activations to the arithmetic. A larger batch "
-                        "reuses the same weights for more images, which often raises "
-                        "images per second, until memory runs out or the batch is "
-                        "larger than the training set.",
-                        "Nothing above is a speed for your machine. The menu lists CPU "
-                        "on every install. It adds CUDA when this PyTorch build can see "
-                        "a CUDA device, and Apple silicon (MPS) when PyTorch reports "
-                        "that backend. A device that is not listed is not available. "
+                        "A CPU handles many kinds of work. A GPU, reached through CUDA "
+                        "or Metal (MPS), is built to do many of these multiplies at once. "
+                        "A larger batch gives the GPU more work in parallel; with a tiny "
+                        "batch, launching that work can eat up the savings. The GPU "
+                        "still needs memory for the extra activations.",
+                        "Training changes weights using gradients. You can train on the "
+                        "CPU or an available GPU. Inference uses the learned weights "
+                        "without changing them. The Neural Engine on Apple silicon is "
+                        "built for that kind of work: Core ML can use it for inference, "
+                        "but it cannot train the model in this lab.",
+                        "The Hardware panel shows what is available and why an option "
+                        "might be disabled. "
                         "Images per second in the table is measured wall-clock time: "
                         "training images scored, divided by the training pass, including "
                         "loading the images and the optimizer step. Validation time is "
@@ -845,40 +855,105 @@ def _build() -> tuple[Section, ...]:
                     ),
                     visual="devices",
                 ),
+                Block(
+                    heading="Inference on the device",
+                    paragraphs=(
+                        "An exported model can classify an image on the device itself. "
+                        "The image never needs to leave that device, which helps privacy. "
+                        "There is no network round trip to wait for. Dedicated accelerators "
+                        "can also do the same work for less energy, though the actual "
+                        "latency and energy depend on the machine and the model.",
+                        "Core ML can be allowed CPU only, CPU and GPU, CPU and Neural "
+                        "Engine, or ALL. These settings say what Core ML may use, not "
+                        "what it did use. Timings alone cannot tell you where a layer ran. "
+                        "CPU_AND_NE is disabled on machines without a Neural Engine.",
+                        "Float16 takes half as many bytes per weight as float32, but the "
+                        "package also includes other data. Rounding can move the scores "
+                        "without changing the winning class. Use the sidebar Precision "
+                        "control and compare measured package size, median latency, "
+                        "top-1 agreement, and the largest probability difference "
+                        "against float32 PyTorch.",
+                    ),
+                    visual="on_device",
+                ),
             ),
             exercise=Exercise(
                 changed=("batch_size", "device"),
                 instructions=(
-                    "Use the built-in shapes. Leave the learning rate, the epochs, the "
-                    "holdout, shuffle, augmentation, the seed, and Transfer mode at "
-                    f"their defaults. Train once with batch size {MIN_BATCH_SIZE}, then "
-                    f"once with batch size {COMPARISON_BATCH}. If the hardware menu "
-                    f"lists a second device, set the batch size back to {DEFAULT_BATCH_SIZE} "
-                    "and train once on that device. If the menu lists only CPU, there "
-                    "is no second device to compare; the batch-size comparison is the "
-                    "exercise."
+                    f"Use the built-in shapes and batch size {MIN_BATCH_SIZE}. Train on "
+                    "CPU, then switch to an available GPU and train with the same "
+                    f"settings. Change only the batch size to {COMPARISON_BATCH} and "
+                    "repeat both runs. If neither GPU is available, compare the two "
+                    "batch sizes on CPU."
                 ),
                 look_for=(
-                    "In the table of your runs: seconds per training epoch, and images "
-                    "per second. In the memory chart: parameter bytes and Adam bytes "
-                    "stay put when the batch changes, and the forward-output parts "
-                    "list grows with the batch. Images per second may rise with the "
-                    "larger batch, or may not, on a small CPU run. Record what this "
-                    "computer did."
+                    "Find Train s/epoch in the run log by Device and Batch. Did the "
+                    "gap change? The first epoch on a GPU can include one-time setup, "
+                    "so compare the later epochs in the history as well. In the memory "
+                    "chart, forward outputs grow with the batch; parameter and Adam "
+                    "bytes stay put."
                 ),
-                question=(
-                    "Doubling the batch size doubles which of these: the number of "
-                    "parameters, or the forward-output parts list? What else about "
-                    "the epoch changes?"
-                ),
+                question="Why might a GPU pull ahead on a larger batch but not on a tiny one?",
                 answer=(
-                    "The forward-output parts list. Each image has its own activations, "
-                    "and the parameters are the same tensors either way. A larger batch "
-                    "also means fewer Adam updates per epoch, because more images are "
-                    "scored before each step, and it uses more memory for those "
-                    "activations. It does not, by itself, train for more epochs. "
-                    "Whether images per second rose is the measurement in your table, "
-                    "not a number this page can know in advance."
+                    "More images give the GPU more work to do in parallel. On a tiny "
+                    "batch, the time to launch that work can cancel out the savings. "
+                    "Use your measured times rather than assuming a speedup."
+                ),
+            ),
+            extra_exercises=(
+                Exercise(
+                    key="neural-engine",
+                    changed=("inference_backends",),
+                    instructions=(
+                        "Train and export a model. Predict whether CPU_AND_NE will beat "
+                        "CPU_AND_GPU on one image, then select those backends in Hardware "
+                        "and measure them. Without a Neural Engine, CPU_AND_NE is unavailable: "
+                        "compare CPU_ONLY and CPU_AND_GPU instead. If Core ML prediction is "
+                        "unavailable, compare the PyTorch backends that are enabled."
+                    ),
+                    look_for="Compare the median latency rows for the same export.",
+                    question="Did the option you picked have the lower measured latency?",
+                    answer=(
+                        "Read the medians on this machine. A lower median means the "
+                        "setting was faster here, not that every layer ran on its accelerator."
+                    ),
+                ),
+                Exercise(
+                    key="precision",
+                    changed=("precision",),
+                    instructions=(
+                        "Export the same trained model in float32, then switch Precision "
+                        "to float16 and export again. Measure each precision with the "
+                        "same inference backends. If Core ML prediction is unavailable, "
+                        "compare package sizes alone."
+                    ),
+                    look_for=(
+                        "Float16 halves the weight bytes. Check how close the full package "
+                        "comes to half the size, whether the winning labels still match "
+                        "float32 PyTorch, and how the median latency changes."
+                    ),
+                    question="Can the scores change even when the predicted labels match?",
+                    answer=(
+                        "Yes. Rounding can shift probabilities without changing which "
+                        "one is largest. Check both the top-1 agreement and the maximum "
+                        "absolute probability difference."
+                    ),
+                ),
+                Exercise(
+                    key="all",
+                    changed=("inference_backends",),
+                    instructions=(
+                        "Select Core ML ALL and the other available Core ML settings. "
+                        "Measure them together on the same export. If Core ML prediction "
+                        "is unavailable here, use the check below instead."
+                    ),
+                    look_for="Which of the other medians is closest to ALL?",
+                    question="Which compute unit did ALL pick? What can the table tell you?",
+                    answer=(
+                        "Similar timings are a clue, not proof. ALL lets Core ML use "
+                        "any available unit, and it may split work across them. "
+                        "The table reports time, not which unit ran each layer."
+                    ),
                 ),
             ),
         ),

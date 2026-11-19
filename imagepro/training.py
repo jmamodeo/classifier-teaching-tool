@@ -79,15 +79,25 @@ class BatchPlan:
     note: str | None
 
 
-def available_devices() -> tuple[tuple[str, str], ...]:
+TRAINING_DEVICE_LABELS = {"cpu": "CPU", "cuda": "NVIDIA GPU (CUDA)", "mps": "Apple GPU (Metal/MPS)"}
+
+
+def available_devices(
+    *,
+    cuda_available: Callable[[], bool] | None = None,
+    mps_available: Callable[[], bool] | None = None,
+) -> tuple[tuple[str, str], ...]:
     """Device labels and torch device strings this installation can use."""
-    devices = [("CPU", "cpu")]
-    if torch.cuda.is_available():
-        devices.append(("CUDA", "cuda"))
+    devices = ["cpu"]
+    if (cuda_available or torch.cuda.is_available)():
+        devices.append("cuda")
     mps = getattr(torch.backends, "mps", None)
-    if mps is not None and bool(mps.is_available()):
-        devices.append(("Apple silicon (MPS)", "mps"))
-    return tuple(devices)
+    has_mps = (
+        mps_available() if mps_available is not None else mps is not None and mps.is_available()
+    )
+    if has_mps:
+        devices.append("mps")
+    return tuple((TRAINING_DEVICE_LABELS[device], device) for device in devices)
 
 
 def set_seed(seed: int) -> None:
