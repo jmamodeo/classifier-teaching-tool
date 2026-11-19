@@ -39,12 +39,13 @@ Python 3.11 or newer.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+# CPU-only machine: install the CPU builds of PyTorch first. Skip this line if you have an NVIDIA GPU.
 pip install torch==2.15.0 torchvision==0.29.2 --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
-python3 -m streamlit run main.py
+streamlit run main.py
 ```
 
-Install the CPU wheels first on a machine without an NVIDIA GPU. The second command keeps them, because they already satisfy the pins in `requirements.txt`. On a machine with a GPU, `pip install -r requirements.txt` takes the default PyTorch wheel. The hardware menu lists CUDA when PyTorch reports it, and Apple silicon (MPS) when that backend is available.
+`requirements.txt` pins the versions the app was tested with. The CPU builds satisfy those pins, so the last install keeps them. With a GPU, skip the PyTorch line and `pip install -r requirements.txt` takes the default PyTorch wheel. The hardware menu lists CUDA when PyTorch reports it, and Apple silicon (MPS) when that backend is available.
 
 The first transfer run downloads the ImageNet ResNet-18 weights, about 45 MB, from `download.pytorch.org`. Novel mode trains from random initialization and does not download weights.
 
@@ -96,6 +97,8 @@ LICENSE                  MIT license
 ```
 
 ## Development
+
+Contributor setup, for running the checks. Use it instead of the Quickstart install, in its own virtual environment. It installs the app in editable mode with the `dev` extras.
 
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
