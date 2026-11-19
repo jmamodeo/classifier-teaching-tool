@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The README Development section states the merge rule.
+
 ## 1.1.1 - 2026-11-19
 
 ### Changed
