@@ -13,7 +13,7 @@ license: MIT
 authors:
   - family-names: Amodeo
     given-names: John
-repository-code: "https://github.com/jmamodeo/classifier-teaching-tool"
+repository-code: "https://github.com/jmamodeo/image-classifier-lab"
 keywords:
   - image classification
   - transfer learning

@@ -1,6 +1,6 @@
 # Lessons in AI from an Image Classifier
 
-[![CI](https://github.com/jmamodeo/classifier-teaching-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/jmamodeo/classifier-teaching-tool/actions/workflows/ci.yml)
+[![CI](https://github.com/jmamodeo/image-classifier-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/jmamodeo/image-classifier-lab/actions/workflows/ci.yml)
 
 A Streamlit lab for learning how an image classifier works, and how that work lands on the hardware that runs it. Eight lessons sit above a training lab. Give the lab a few labeled images, or use the built-in circles, squares, and triangles, then train a ResNet-18 and read the charts.
 
